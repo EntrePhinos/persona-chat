@@ -9,13 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiIngestTextRouteImport } from './routes/api/ingest-text'
 import { Route as ApiIngestRouteImport } from './routes/api/ingest'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 
+const SlugRoute = SlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIngestTextRoute = ApiIngestTextRouteImport.update({
+  id: '/api/ingest-text',
+  path: '/api/ingest-text',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiIngestRoute = ApiIngestRouteImport.update({
@@ -31,41 +43,69 @@ const ApiChatRoute = ApiChatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$slug': typeof SlugRoute
   '/api/chat': typeof ApiChatRoute
   '/api/ingest': typeof ApiIngestRoute
+  '/api/ingest-text': typeof ApiIngestTextRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$slug': typeof SlugRoute
   '/api/chat': typeof ApiChatRoute
   '/api/ingest': typeof ApiIngestRoute
+  '/api/ingest-text': typeof ApiIngestTextRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$slug': typeof SlugRoute
   '/api/chat': typeof ApiChatRoute
   '/api/ingest': typeof ApiIngestRoute
+  '/api/ingest-text': typeof ApiIngestTextRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/chat' | '/api/ingest'
+  fullPaths: '/' | '/$slug' | '/api/chat' | '/api/ingest' | '/api/ingest-text'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/chat' | '/api/ingest'
-  id: '__root__' | '/' | '/api/chat' | '/api/ingest'
+  to: '/' | '/$slug' | '/api/chat' | '/api/ingest' | '/api/ingest-text'
+  id:
+    | '__root__'
+    | '/'
+    | '/$slug'
+    | '/api/chat'
+    | '/api/ingest'
+    | '/api/ingest-text'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SlugRoute: typeof SlugRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiIngestRoute: typeof ApiIngestRoute
+  ApiIngestTextRoute: typeof ApiIngestTextRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/$slug': {
+      id: '/$slug'
+      path: '/$slug'
+      fullPath: '/$slug'
+      preLoaderRoute: typeof SlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ingest-text': {
+      id: '/api/ingest-text'
+      path: '/api/ingest-text'
+      fullPath: '/api/ingest-text'
+      preLoaderRoute: typeof ApiIngestTextRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ingest': {
@@ -87,9 +127,21 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SlugRoute: SlugRoute,
   ApiChatRoute: ApiChatRoute,
   ApiIngestRoute: ApiIngestRoute,
+  ApiIngestTextRoute: ApiIngestTextRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
