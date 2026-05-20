@@ -545,7 +545,52 @@ function InterviewTab({ influencer }: { influencer: Influencer }) {
   const [answer, setAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  const q = INTERVIEW_QUESTIONS[step];
+  const [followUp, setFollowUp] = useState<string | null>(null);
+  const [isFollowUp, setIsFollowUp] = useState(false);
+  const baseQ = INTERVIEW_QUESTIONS[step];
+  const q = isFollowUp && followUp ? followUp : baseQ;
+  const minutesLeft = Math.max(1, Math.round((INTERVIEW_QUESTIONS.length - step) * 1.5));
+
+  async function generateFollowUp(question: string, ans: string): Promise<string | null> {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Basándote en esta pregunta de entrevista: "${question}" y esta respuesta: "${ans}", genera UNA sola pregunta de seguimiento breve y específica para profundizar. Solo la pregunta, sin introducción.`,
+          session_id: "interview-followup",
+          influencer_id: influencer.id,
+          history: [],
+        }),
+      });
+      if (!res.ok || !res.body) return null;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let acc = "";
+      while (true) {
+        const { done: rDone, value } = await reader.read();
+        if (rDone) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const raw of lines) {
+          const line = raw.trim();
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (payload === "[DONE]" || !payload) continue;
+          try {
+            const j = JSON.parse(payload);
+            if (j.delta) acc += j.delta;
+          } catch { /* */ }
+        }
+      }
+      const cleaned = acc.trim().replace(/^["'¿]?/, "¿").replace(/[."']?$/, "?");
+      return cleaned.length > 5 ? cleaned : null;
+    } catch {
+      return null;
+    }
+  }
 
   async function submit(skip = false) {
     if (!skip && answer.trim().length < 5) return;
@@ -557,12 +602,24 @@ function InterviewTab({ influencer }: { influencer: Influencer }) {
         body: JSON.stringify({
           influencer_id: influencer.id,
           text: `Pregunta: ${q}\nRespuesta: ${answer}`,
-          source: `Entrevista IA · Q${step + 1}`,
+          source: `Entrevista IA · Q${step + 1}${isFollowUp ? " (seguimiento)" : ""}`,
           kind: "interview",
           question: q,
         }),
       });
+      if (!isFollowUp) {
+        const fq = await generateFollowUp(baseQ, answer);
+        if (fq) {
+          setFollowUp(fq);
+          setIsFollowUp(true);
+          setAnswer("");
+          setSubmitting(false);
+          return;
+        }
+      }
     }
+    setFollowUp(null);
+    setIsFollowUp(false);
     setAnswer("");
     setSubmitting(false);
     if (step + 1 >= INTERVIEW_QUESTIONS.length) setDone(true);
@@ -595,9 +652,16 @@ function InterviewTab({ influencer }: { influencer: Influencer }) {
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
           <div className="h-full bg-primary" style={{ width: `${((step + 1) / INTERVIEW_QUESTIONS.length) * 100}%` }} />
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Pregunta {step + 1} de {INTERVIEW_QUESTIONS.length}</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Pregunta {step + 1} de {INTERVIEW_QUESTIONS.length} · ~{minutesLeft} min restantes
+        </p>
       </div>
       <div className="rounded-xl border border-border bg-card p-5">
+        {isFollowUp && (
+          <span className="mb-3 inline-block rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
+            Seguimiento
+          </span>
+        )}
         <p className="text-base font-medium">{q}</p>
         <textarea className="input mt-3 min-h-[120px]" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Tu respuesta…" />
         <div className="mt-3 flex flex-wrap gap-2">
