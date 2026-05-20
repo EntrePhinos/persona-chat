@@ -9,38 +9,133 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiIngestTextRouteImport } from './routes/api/ingest-text'
+import { Route as ApiIngestRouteImport } from './routes/api/ingest'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as SlugChatRouteImport } from './routes/$slug.chat'
 
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SlugRoute = SlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiIngestTextRoute = ApiIngestTextRouteImport.update({
+  id: '/api/ingest-text',
+  path: '/api/ingest-text',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIngestRoute = ApiIngestRouteImport.update({
+  id: '/api/ingest',
+  path: '/api/ingest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SlugChatRoute = SlugChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => SlugRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$slug': typeof SlugRouteWithChildren
+  '/dashboard': typeof DashboardRoute
+  '/$slug/chat': typeof SlugChatRoute
+  '/api/chat': typeof ApiChatRoute
+  '/api/ingest': typeof ApiIngestRoute
+  '/api/ingest-text': typeof ApiIngestTextRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$slug': typeof SlugRouteWithChildren
+  '/dashboard': typeof DashboardRoute
+  '/$slug/chat': typeof SlugChatRoute
+  '/api/chat': typeof ApiChatRoute
+  '/api/ingest': typeof ApiIngestRoute
+  '/api/ingest-text': typeof ApiIngestTextRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$slug': typeof SlugRouteWithChildren
+  '/dashboard': typeof DashboardRoute
+  '/$slug/chat': typeof SlugChatRoute
+  '/api/chat': typeof ApiChatRoute
+  '/api/ingest': typeof ApiIngestRoute
+  '/api/ingest-text': typeof ApiIngestTextRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/$slug'
+    | '/dashboard'
+    | '/$slug/chat'
+    | '/api/chat'
+    | '/api/ingest'
+    | '/api/ingest-text'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/$slug'
+    | '/dashboard'
+    | '/$slug/chat'
+    | '/api/chat'
+    | '/api/ingest'
+    | '/api/ingest-text'
+  id:
+    | '__root__'
+    | '/'
+    | '/$slug'
+    | '/dashboard'
+    | '/$slug/chat'
+    | '/api/chat'
+    | '/api/ingest'
+    | '/api/ingest-text'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SlugRoute: typeof SlugRouteWithChildren
+  DashboardRoute: typeof DashboardRoute
+  ApiChatRoute: typeof ApiChatRoute
+  ApiIngestRoute: typeof ApiIngestRoute
+  ApiIngestTextRoute: typeof ApiIngestTextRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$slug': {
+      id: '/$slug'
+      path: '/$slug'
+      fullPath: '/$slug'
+      preLoaderRoute: typeof SlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +143,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ingest-text': {
+      id: '/api/ingest-text'
+      path: '/api/ingest-text'
+      fullPath: '/api/ingest-text'
+      preLoaderRoute: typeof ApiIngestTextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ingest': {
+      id: '/api/ingest'
+      path: '/api/ingest'
+      fullPath: '/api/ingest'
+      preLoaderRoute: typeof ApiIngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$slug/chat': {
+      id: '/$slug/chat'
+      path: '/chat'
+      fullPath: '/$slug/chat'
+      preLoaderRoute: typeof SlugChatRouteImport
+      parentRoute: typeof SlugRoute
+    }
   }
 }
 
+interface SlugRouteChildren {
+  SlugChatRoute: typeof SlugChatRoute
+}
+
+const SlugRouteChildren: SlugRouteChildren = {
+  SlugChatRoute: SlugChatRoute,
+}
+
+const SlugRouteWithChildren = SlugRoute._addFileChildren(SlugRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SlugRoute: SlugRouteWithChildren,
+  DashboardRoute: DashboardRoute,
+  ApiChatRoute: ApiChatRoute,
+  ApiIngestRoute: ApiIngestRoute,
+  ApiIngestTextRoute: ApiIngestTextRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
