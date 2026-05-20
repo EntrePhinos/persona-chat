@@ -646,11 +646,20 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
   const maxBucket = Math.max(1, ...Object.values(bucketCounts));
   const dominantBucket = Object.entries(bucketCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "1-3";
 
+  const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - 7);
+  const lastWeekStart = new Date(today); lastWeekStart.setDate(today.getDate() - 14);
+  const convsThisWeek = rows.filter((r) => new Date(r.created_at) >= thisWeekStart).length;
+  const convsLastWeek = rows.filter((r) => {
+    const d = new Date(r.created_at);
+    return d >= lastWeekStart && d < thisWeekStart;
+  }).length;
+  const convsDelta = convsThisWeek - convsLastWeek;
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Analytics</h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <StatCard label="Conversaciones totales" value={totalConvs} />
+        <StatCard label="Conversaciones totales" value={totalConvs} delta={convsDelta} deltaLabel="vs semana anterior" />
         <StatCard label="Mensajes hoy" value={msgsToday} delta={msgsToday - msgsYesterday} />
         <StatCard label="Usuarios únicos" value={sessions.size} />
         <StatCard label="Mensajes / sesión" value={avgMsgsSession} />
