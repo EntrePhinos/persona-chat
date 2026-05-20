@@ -423,6 +423,7 @@ function VoiceCall({
   }
 
   function hangUp() {
+    recRef.current = null;
     try { recRef.current?.stop(); } catch { /* */ }
     window.speechSynthesis.cancel();
     onClose();
