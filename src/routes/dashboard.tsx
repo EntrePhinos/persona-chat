@@ -162,6 +162,7 @@ function ProfileSection({ influencer }: { influencer: Influencer }) {
     bio: influencer.bio ?? "",
     accent_color: influencer.accent_color ?? "#6C47FF",
     badge_label: influencer.badge_label ?? "",
+    system_prompt: influencer.system_prompt ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -176,6 +177,7 @@ function ProfileSection({ influencer }: { influencer: Influencer }) {
       bio: influencer.bio ?? "",
       accent_color: influencer.accent_color ?? "#6C47FF",
       badge_label: influencer.badge_label ?? "",
+      system_prompt: influencer.system_prompt ?? "",
     });
   }, [influencer.id]);
 
