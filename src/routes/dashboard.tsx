@@ -744,14 +744,14 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
   );
 }
 
-function StatCard({ label, value, delta }: { label: string; value: number | string; delta?: number }) {
+function StatCard({ label, value, delta, deltaLabel }: { label: string; value: number | string; delta?: number; deltaLabel?: string }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
       {typeof delta === "number" && (
         <div className={`mt-1 text-xs ${delta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-          {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)} vs ayer
+          {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)} {deltaLabel ?? "vs ayer"}
         </div>
       )}
     </div>
