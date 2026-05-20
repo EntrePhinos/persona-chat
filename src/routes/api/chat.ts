@@ -181,11 +181,12 @@ REGLAS:
                     .eq("session_id", body.session_id)
                     .eq("influencer_id", body.influencer_id)
                     .maybeSingle();
+                  const prev = (existing?.messages as { role: string; content: string; ts: number }[]) ?? [];
                   const newMsgs = [
-                    ...((existing?.messages as unknown[]) ?? []),
+                    ...prev,
                     { role: "user", content: body.message, ts: Date.now() },
                     { role: "assistant", content: fullText, ts: Date.now() },
-                  ];
+                  ] as unknown as never;
                   if (existing) {
                     await supabaseAdmin
                       .from("conversations")
