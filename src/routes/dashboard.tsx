@@ -252,6 +252,17 @@ function ProfileSection({ influencer }: { influencer: Influencer }) {
       <Field label="Bio corta">
         <textarea className="input min-h-[80px]" value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
       </Field>
+      <Field label="Prompt del sistema (personalidad del clon)">
+        <textarea
+          className="input min-h-[120px] font-mono text-xs"
+          value={form.system_prompt}
+          onChange={(e) => setForm({ ...form, system_prompt: e.target.value })}
+          placeholder={`Eres ${influencer.name}. Responde siempre en primera persona con tono conversacional…`}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Define la personalidad base del clon. Si está vacío, se genera automáticamente desde la bio.
+        </p>
+      </Field>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Color acento">
           <input type="color" value={form.accent_color} onChange={(e) => setForm({ ...form, accent_color: e.target.value })} className="h-10 w-full rounded-lg border border-border" />
