@@ -184,7 +184,7 @@ function ChatPage() {
               Pregúntale lo que quieras a {inf.name}. Aquí van algunas ideas:
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {QUICK_SUGGESTIONS.default.map((s) => (
+              {(QUICK_SUGGESTIONS[slug] ?? QUICK_SUGGESTIONS.default).map((s) => (
                 <button
                   key={s}
                   onClick={() => send(s)}
