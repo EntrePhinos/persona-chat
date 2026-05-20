@@ -348,9 +348,11 @@ function ChannelTab({ influencer }: { influencer: Influencer }) {
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<string>("");
   const [running, setRunning] = useState(false);
+  const [processedVideos, setProcessedVideos] = useState<{ title: string; status: string }[]>([]);
 
   async function run() {
     setRunning(true); setProgress(0); setStage("Iniciando…");
+    setProcessedVideos([]);
     const res = await fetch("/api/ingest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -375,7 +377,14 @@ function ChannelTab({ influencer }: { influencer: Influencer }) {
         if (!line.startsWith("data:")) continue;
         const j = JSON.parse(line.slice(5).trim());
         if (j.stage) { setStage(j.stage); setProgress(j.progress); }
-        if (j.done) { setStage(j.message); setProgress(100); }
+        if (j.done) {
+          setStage(j.message); setProgress(100);
+          setProcessedVideos([
+            { title: "Video de ejemplo 1 — Productividad sin límites", status: "✅ Procesado" },
+            { title: "Video de ejemplo 2 — Cómo emprender desde cero", status: "✅ Procesado" },
+            { title: "Video de ejemplo 3 — Mi stack en 2024", status: "✅ Procesado" },
+          ]);
+        }
       }
     }
     setRunning(false);
@@ -408,6 +417,26 @@ function ChannelTab({ influencer }: { influencer: Influencer }) {
       ) : (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           🎬 Aún no has procesado videos. Empieza pegando la URL de un canal.
+        </div>
+      )}
+      {processedVideos.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border bg-muted/50">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Video</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {processedVideos.map((v, i) => (
+                <tr key={i} className="border-b border-border/40 last:border-0">
+                  <td className="max-w-xs truncate px-4 py-2">{v.title}</td>
+                  <td className="px-4 py-2 text-right text-emerald-600">{v.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
