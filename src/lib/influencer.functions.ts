@@ -59,6 +59,7 @@ export const updateInfluencer = createServerFn({ method: "POST" })
           .nullable()
           .optional(),
         badge_label: z.string().max(40).nullable().optional(),
+        system_prompt: z.string().max(3000).nullable().optional(),
       })
       .parse(d),
   )

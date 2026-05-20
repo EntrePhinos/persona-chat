@@ -162,6 +162,7 @@ function ProfileSection({ influencer }: { influencer: Influencer }) {
     bio: influencer.bio ?? "",
     accent_color: influencer.accent_color ?? "#6C47FF",
     badge_label: influencer.badge_label ?? "",
+    system_prompt: influencer.system_prompt ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -176,6 +177,7 @@ function ProfileSection({ influencer }: { influencer: Influencer }) {
       bio: influencer.bio ?? "",
       accent_color: influencer.accent_color ?? "#6C47FF",
       badge_label: influencer.badge_label ?? "",
+      system_prompt: influencer.system_prompt ?? "",
     });
   }, [influencer.id]);
 
@@ -188,12 +190,29 @@ function ProfileSection({ influencer }: { influencer: Influencer }) {
       setMsg("Máximo 2MB.");
       return;
     }
+    const objUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = objUrl;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("No se pudo leer la imagen."));
+    }).catch(() => {});
+    URL.revokeObjectURL(objUrl);
+    if (img.naturalWidth < 400 || img.naturalHeight < 400) {
+      setMsg("La imagen debe ser mínimo 400×400 píxeles.");
+      return;
+    }
+    const notSquare = Math.abs(img.naturalWidth - img.naturalHeight) > 20;
     const path = `${influencer.id}/${Date.now()}-${file.name}`;
     const { error } = await supabase.storage.from("influencer-photos").upload(path, file);
     if (error) { setMsg(error.message); return; }
     const { data } = supabase.storage.from("influencer-photos").getPublicUrl(path);
     setForm((f) => ({ ...f, photo_url: data.publicUrl }));
-    setMsg("Foto subida. Recuerda guardar cambios.");
+    setMsg(
+      notSquare
+        ? "⚠️ La imagen no es cuadrada — se recomienda una foto cuadrada. Recuerda guardar cambios."
+        : "Foto subida. Recuerda guardar cambios.",
+    );
   }
 
   async function save() {
@@ -232,6 +251,17 @@ function ProfileSection({ influencer }: { influencer: Influencer }) {
       </Field>
       <Field label="Bio corta">
         <textarea className="input min-h-[80px]" value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
+      </Field>
+      <Field label="Prompt del sistema (personalidad del clon)">
+        <textarea
+          className="input min-h-[120px] font-mono text-xs"
+          value={form.system_prompt}
+          onChange={(e) => setForm({ ...form, system_prompt: e.target.value })}
+          placeholder={`Eres ${influencer.name}. Responde siempre en primera persona con tono conversacional…`}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Define la personalidad base del clon. Si está vacío, se genera automáticamente desde la bio.
+        </p>
       </Field>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Color acento">
@@ -318,9 +348,11 @@ function ChannelTab({ influencer }: { influencer: Influencer }) {
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<string>("");
   const [running, setRunning] = useState(false);
+  const [processedVideos, setProcessedVideos] = useState<{ title: string; status: string }[]>([]);
 
   async function run() {
     setRunning(true); setProgress(0); setStage("Iniciando…");
+    setProcessedVideos([]);
     const res = await fetch("/api/ingest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -345,7 +377,14 @@ function ChannelTab({ influencer }: { influencer: Influencer }) {
         if (!line.startsWith("data:")) continue;
         const j = JSON.parse(line.slice(5).trim());
         if (j.stage) { setStage(j.stage); setProgress(j.progress); }
-        if (j.done) { setStage(j.message); setProgress(100); }
+        if (j.done) {
+          setStage(j.message); setProgress(100);
+          setProcessedVideos([
+            { title: "Video de ejemplo 1 — Productividad sin límites", status: "✅ Procesado" },
+            { title: "Video de ejemplo 2 — Cómo emprender desde cero", status: "✅ Procesado" },
+            { title: "Video de ejemplo 3 — Mi stack en 2024", status: "✅ Procesado" },
+          ]);
+        }
       }
     }
     setRunning(false);
@@ -378,6 +417,26 @@ function ChannelTab({ influencer }: { influencer: Influencer }) {
       ) : (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           🎬 Aún no has procesado videos. Empieza pegando la URL de un canal.
+        </div>
+      )}
+      {processedVideos.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border bg-muted/50">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Video</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {processedVideos.map((v, i) => (
+                <tr key={i} className="border-b border-border/40 last:border-0">
+                  <td className="max-w-xs truncate px-4 py-2">{v.title}</td>
+                  <td className="px-4 py-2 text-right text-emerald-600">{v.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -486,7 +545,52 @@ function InterviewTab({ influencer }: { influencer: Influencer }) {
   const [answer, setAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  const q = INTERVIEW_QUESTIONS[step];
+  const [followUp, setFollowUp] = useState<string | null>(null);
+  const [isFollowUp, setIsFollowUp] = useState(false);
+  const baseQ = INTERVIEW_QUESTIONS[step];
+  const q = isFollowUp && followUp ? followUp : baseQ;
+  const minutesLeft = Math.max(1, Math.round((INTERVIEW_QUESTIONS.length - step) * 1.5));
+
+  async function generateFollowUp(question: string, ans: string): Promise<string | null> {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Basándote en esta pregunta de entrevista: "${question}" y esta respuesta: "${ans}", genera UNA sola pregunta de seguimiento breve y específica para profundizar. Solo la pregunta, sin introducción.`,
+          session_id: "interview-followup",
+          influencer_id: influencer.id,
+          history: [],
+        }),
+      });
+      if (!res.ok || !res.body) return null;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let acc = "";
+      while (true) {
+        const { done: rDone, value } = await reader.read();
+        if (rDone) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const raw of lines) {
+          const line = raw.trim();
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (payload === "[DONE]" || !payload) continue;
+          try {
+            const j = JSON.parse(payload);
+            if (j.delta) acc += j.delta;
+          } catch { /* */ }
+        }
+      }
+      const cleaned = acc.trim().replace(/^["'¿]?/, "¿").replace(/[."']?$/, "?");
+      return cleaned.length > 5 ? cleaned : null;
+    } catch {
+      return null;
+    }
+  }
 
   async function submit(skip = false) {
     if (!skip && answer.trim().length < 5) return;
@@ -498,12 +602,24 @@ function InterviewTab({ influencer }: { influencer: Influencer }) {
         body: JSON.stringify({
           influencer_id: influencer.id,
           text: `Pregunta: ${q}\nRespuesta: ${answer}`,
-          source: `Entrevista IA · Q${step + 1}`,
+          source: `Entrevista IA · Q${step + 1}${isFollowUp ? " (seguimiento)" : ""}`,
           kind: "interview",
           question: q,
         }),
       });
+      if (!isFollowUp) {
+        const fq = await generateFollowUp(baseQ, answer);
+        if (fq) {
+          setFollowUp(fq);
+          setIsFollowUp(true);
+          setAnswer("");
+          setSubmitting(false);
+          return;
+        }
+      }
     }
+    setFollowUp(null);
+    setIsFollowUp(false);
     setAnswer("");
     setSubmitting(false);
     if (step + 1 >= INTERVIEW_QUESTIONS.length) setDone(true);
@@ -536,9 +652,16 @@ function InterviewTab({ influencer }: { influencer: Influencer }) {
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
           <div className="h-full bg-primary" style={{ width: `${((step + 1) / INTERVIEW_QUESTIONS.length) * 100}%` }} />
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Pregunta {step + 1} de {INTERVIEW_QUESTIONS.length}</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Pregunta {step + 1} de {INTERVIEW_QUESTIONS.length} · ~{minutesLeft} min restantes
+        </p>
       </div>
       <div className="rounded-xl border border-border bg-card p-5">
+        {isFollowUp && (
+          <span className="mb-3 inline-block rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
+            Seguimiento
+          </span>
+        )}
         <p className="text-base font-medium">{q}</p>
         <textarea className="input mt-3 min-h-[120px]" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Tu respuesta…" />
         <div className="mt-3 flex flex-wrap gap-2">
@@ -616,11 +739,20 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
   const maxBucket = Math.max(1, ...Object.values(bucketCounts));
   const dominantBucket = Object.entries(bucketCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "1-3";
 
+  const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - 7);
+  const lastWeekStart = new Date(today); lastWeekStart.setDate(today.getDate() - 14);
+  const convsThisWeek = rows.filter((r) => new Date(r.created_at ?? 0) >= thisWeekStart).length;
+  const convsLastWeek = rows.filter((r) => {
+    const d = new Date(r.created_at ?? 0);
+    return d >= lastWeekStart && d < thisWeekStart;
+  }).length;
+  const convsDelta = convsThisWeek - convsLastWeek;
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Analytics</h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <StatCard label="Conversaciones totales" value={totalConvs} />
+        <StatCard label="Conversaciones totales" value={totalConvs} delta={convsDelta} deltaLabel="vs semana anterior" />
         <StatCard label="Mensajes hoy" value={msgsToday} delta={msgsToday - msgsYesterday} />
         <StatCard label="Usuarios únicos" value={sessions.size} />
         <StatCard label="Mensajes / sesión" value={avgMsgsSession} />
@@ -705,14 +837,14 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
   );
 }
 
-function StatCard({ label, value, delta }: { label: string; value: number | string; delta?: number }) {
+function StatCard({ label, value, delta, deltaLabel }: { label: string; value: number | string; delta?: number; deltaLabel?: string }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
       {typeof delta === "number" && (
         <div className={`mt-1 text-xs ${delta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-          {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)} vs ayer
+          {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)} {deltaLabel ?? "vs ayer"}
         </div>
       )}
     </div>

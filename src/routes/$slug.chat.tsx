@@ -184,7 +184,7 @@ function ChatPage() {
               Pregúntale lo que quieras a {inf.name}. Aquí van algunas ideas:
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {QUICK_SUGGESTIONS.default.map((s) => (
+              {(QUICK_SUGGESTIONS[slug] ?? QUICK_SUGGESTIONS.default).map((s) => (
                 <button
                   key={s}
                   onClick={() => send(s)}
@@ -333,9 +333,16 @@ function VoiceCall({
       }, 2500);
     };
     rec.onerror = (e: any) => console.warn("rec error", e);
+    rec.onend = () => {
+      // Chrome stops recognition after ~60s; restart while the call is active.
+      if (recRef.current) {
+        try { rec.start(); } catch { /* already running */ }
+      }
+    };
     rec.start();
 
     return () => {
+      recRef.current = null;
       try { rec.stop(); } catch { /* */ }
       window.speechSynthesis.cancel();
       if (silenceTimer.current) clearTimeout(silenceTimer.current);
@@ -416,6 +423,7 @@ function VoiceCall({
   }
 
   function hangUp() {
+    recRef.current = null;
     try { recRef.current?.stop(); } catch { /* */ }
     window.speechSynthesis.cancel();
     onClose();

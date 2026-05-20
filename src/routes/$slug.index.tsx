@@ -3,7 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Navbar, Avatar, Badge } from "@/components/brand";
 import { getInfluencerBySlug } from "@/lib/influencer.functions";
 
-export const Route = createFileRoute("/$slug")({
+export const Route = createFileRoute("/$slug/")({
   head: ({ params }) => ({
     meta: [
       { title: `Habla con ${params.slug} · AlterEgo` },
@@ -60,15 +60,26 @@ function Landing() {
               <Avatar influencer={inf} size={128} />
             )}
           </div>
-          <h1 className="mt-6 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-            {inf.name}
-          </h1>
-          {inf.tagline ? (
-            <p className="mt-3 text-lg text-primary">{inf.tagline}</p>
-          ) : null}
-          {inf.bio ? (
-            <p className="mx-auto mt-4 max-w-xl text-pretty text-muted-foreground">{inf.bio}</p>
-          ) : null}
+
+          {isFetching ? (
+            <>
+              <div className="mx-auto mt-6 h-8 w-48 animate-pulse rounded-lg bg-muted" />
+              <div className="mx-auto mt-3 h-4 w-64 animate-pulse rounded bg-muted" />
+              <div className="mx-auto mt-4 h-16 w-full max-w-xl animate-pulse rounded-lg bg-muted" />
+            </>
+          ) : (
+            <>
+              <h1 className="mt-6 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+                {inf.name}
+              </h1>
+              {inf.tagline ? (
+                <p className="mt-3 text-lg text-primary">{inf.tagline}</p>
+              ) : null}
+              {inf.bio ? (
+                <p className="mx-auto mt-4 max-w-xl text-pretty text-muted-foreground">{inf.bio}</p>
+              ) : null}
+            </>
+          )}
 
           <div className="mt-8">
             <Link
@@ -81,9 +92,19 @@ function Landing() {
           </div>
 
           <div className="mx-auto mt-12 grid max-w-md grid-cols-3 gap-3 text-center">
-            <Stat label="Videos" value={String(data.stats.videos)} />
-            <Stat label="Fragmentos" value={String(data.stats.chunks)} />
-            <Stat label="Disponible" value="24/7" />
+            {isFetching ? (
+              <>
+                <div className="h-16 animate-pulse rounded-xl bg-muted" />
+                <div className="h-16 animate-pulse rounded-xl bg-muted" />
+                <div className="h-16 animate-pulse rounded-xl bg-muted" />
+              </>
+            ) : (
+              <>
+                <Stat label="Videos" value={String(data.stats.videos)} />
+                <Stat label="Fragmentos" value={String(data.stats.chunks)} />
+                <Stat label="Disponible" value="24/7" />
+              </>
+            )}
           </div>
 
           <div className="mt-10">

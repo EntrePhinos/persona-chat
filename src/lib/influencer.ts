@@ -28,4 +28,16 @@ export const QUICK_SUGGESTIONS: Record<string, string[]> = {
     "¿Qué te inspira?",
     "Cuéntame algo personal",
   ],
+  "alex-rivera": [
+    "¿Cuál es tu stack tecnológico favorito?",
+    "¿Cómo organizas tu día?",
+    "Recomiéndame un recurso para aprender",
+    "¿Qué error de emprendedor cometiste?",
+  ],
+  "ibai-llanos": [
+    "¿Qué stream fue tu favorito?",
+    "Cuéntame algo gracioso que te pasó",
+    "¿Qué opinas de la Velada del Año?",
+    "¿Cuál es tu juego preferido ahora mismo?",
+  ],
 };
