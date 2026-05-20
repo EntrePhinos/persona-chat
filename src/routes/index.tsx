@@ -52,7 +52,7 @@ function Index() {
               key={inf.id}
               to="/$slug"
               params={{ slug: inf.slug }}
-              className="group rounded-2xl border border-border bg-card p-6 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-card"
+              className="group cursor-pointer rounded-2xl border border-border bg-card p-6 shadow-soft transition-all hover:-translate-y-1 hover:border-primary/20 hover:shadow-card"
             >
               <div className="flex items-start gap-4">
                 <Avatar influencer={inf} size={64} />
