@@ -333,6 +333,12 @@ function VoiceCall({
       }, 2500);
     };
     rec.onerror = (e: any) => console.warn("rec error", e);
+    rec.onend = () => {
+      // Chrome stops recognition after ~60s; restart while the call is active.
+      if (recRef.current) {
+        try { rec.start(); } catch { /* already running */ }
+      }
+    };
     rec.start();
 
     return () => {
