@@ -143,9 +143,8 @@ function ChatPage() {
   }
 
   function dictate() {
-    const SR =
-      (window as unknown as { SpeechRecognition?: typeof window.SpeechRecognition }).SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: typeof window.SpeechRecognition }).webkitSpeechRecognition;
+    const w = window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any };
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) {
       alert("Tu navegador no soporta dictado por voz.");
       return;
