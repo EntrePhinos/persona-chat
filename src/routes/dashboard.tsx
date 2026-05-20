@@ -190,12 +190,29 @@ function ProfileSection({ influencer }: { influencer: Influencer }) {
       setMsg("Máximo 2MB.");
       return;
     }
+    const objUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = objUrl;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("No se pudo leer la imagen."));
+    }).catch(() => {});
+    URL.revokeObjectURL(objUrl);
+    if (img.naturalWidth < 400 || img.naturalHeight < 400) {
+      setMsg("La imagen debe ser mínimo 400×400 píxeles.");
+      return;
+    }
+    const notSquare = Math.abs(img.naturalWidth - img.naturalHeight) > 20;
     const path = `${influencer.id}/${Date.now()}-${file.name}`;
     const { error } = await supabase.storage.from("influencer-photos").upload(path, file);
     if (error) { setMsg(error.message); return; }
     const { data } = supabase.storage.from("influencer-photos").getPublicUrl(path);
     setForm((f) => ({ ...f, photo_url: data.publicUrl }));
-    setMsg("Foto subida. Recuerda guardar cambios.");
+    setMsg(
+      notSquare
+        ? "⚠️ La imagen no es cuadrada — se recomienda una foto cuadrada. Recuerda guardar cambios."
+        : "Foto subida. Recuerda guardar cambios.",
+    );
   }
 
   async function save() {
