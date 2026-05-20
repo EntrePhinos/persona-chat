@@ -223,7 +223,7 @@ function ChatPage() {
 
       <div className="border-t border-border/60 bg-background/95 backdrop-blur">
         <div className="mx-auto max-w-2xl px-4 py-3">
-          <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-soft">
+          <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-soft transition-all focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
             <button
               onClick={dictate}
               className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
