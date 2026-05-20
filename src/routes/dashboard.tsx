@@ -648,9 +648,9 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
 
   const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - 7);
   const lastWeekStart = new Date(today); lastWeekStart.setDate(today.getDate() - 14);
-  const convsThisWeek = rows.filter((r) => new Date(r.created_at) >= thisWeekStart).length;
+  const convsThisWeek = rows.filter((r) => new Date(r.created_at ?? 0) >= thisWeekStart).length;
   const convsLastWeek = rows.filter((r) => {
-    const d = new Date(r.created_at);
+    const d = new Date(r.created_at ?? 0);
     return d >= lastWeekStart && d < thisWeekStart;
   }).length;
   const convsDelta = convsThisWeek - convsLastWeek;
