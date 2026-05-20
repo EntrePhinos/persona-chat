@@ -393,7 +393,7 @@ function VoiceCall({
         }
       }
       if (sentence.trim()) speak(sentence.trim());
-      historyRef.current = [...historyRef.current, { role: "assistant", content: full }].slice(-16);
+      historyRef.current = [...historyRef.current, { role: "assistant" as const, content: full }].slice(-16);
     } finally {
       // status reverts when speech ends
       setTimeout(() => {
