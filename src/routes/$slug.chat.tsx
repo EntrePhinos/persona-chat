@@ -342,6 +342,7 @@ function VoiceCall({
     rec.start();
 
     return () => {
+      recRef.current = null;
       try { rec.stop(); } catch { /* */ }
       window.speechSynthesis.cancel();
       if (silenceTimer.current) clearTimeout(silenceTimer.current);
