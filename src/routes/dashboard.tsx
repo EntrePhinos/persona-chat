@@ -9,13 +9,37 @@ import {
 } from "@/lib/influencer.functions";
 import { supabase } from "@/integrations/supabase/client";
 import type { Influencer } from "@/lib/influencer";
-import { Check, ChevronDown, User, GraduationCap, BarChart3, Menu, X } from "lucide-react";
+import { Check, ChevronDown, User, GraduationCap, BarChart3, Menu, X, Mic, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard · AlterEgo" }] }),
   loader: () => listInfluencers(),
   component: Dashboard,
 });
+
+// Shared input / button class strings — used across the dashboard for consistency.
+const INPUT_CLS =
+  "w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15";
+const TEXTAREA_CLS = `${INPUT_CLS} resize-none`;
+const SELECT_CLS =
+  "w-full appearance-none cursor-pointer rounded-xl border border-border bg-card pl-3 pr-10 py-2.5 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15";
+const BTN_PRIMARY =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed";
+const BTN_SECONDARY =
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed";
+
+function SelectWrap({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      {children}
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+    </div>
+  );
+}
+
+function Spinner({ className = "" }: { className?: string }) {
+  return <Loader2 className={`size-4 animate-spin ${className}`} />;
+}
 
 type Section = "profile" | "train" | "analytics";
 
@@ -36,10 +60,10 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border/60 bg-background">
+      <header className="sticky top-0 z-20 border-b border-border/60 bg-background/90 backdrop-blur-md">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <button onClick={() => setMenuOpen((v) => !v)} className="sm:hidden">
+            <button onClick={() => setMenuOpen((v) => !v)} className="sm:hidden text-muted-foreground hover:text-foreground">
               {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
             </button>
             <Logo />
@@ -61,7 +85,7 @@ function Dashboard() {
 
       <div className="flex">
         <aside
-          className={`${menuOpen ? "block" : "hidden"} w-56 shrink-0 border-r border-border/60 bg-sidebar sm:block`}
+          className={`${menuOpen ? "block" : "hidden"} w-60 shrink-0 border-r border-border/60 bg-sidebar sm:sticky sm:top-[105px] sm:block sm:h-[calc(100vh-105px)]`}
         >
           <nav className="flex flex-col gap-1 p-4">
             <SideItem icon={User} label="Perfil del Influencer" active={section === "profile"} onClick={() => { setSection("profile"); setMenuOpen(false); }} />
@@ -97,8 +121,10 @@ function SideItem({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
-        active ? "bg-primary-soft text-primary" : "text-foreground hover:bg-muted"
+      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+        active
+          ? "bg-primary text-primary-foreground shadow-soft"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}
     >
       <Icon className="size-4" /> {label}
@@ -120,7 +146,7 @@ function InfluencerPicker({
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm hover:bg-muted"
+        className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-muted"
       >
         <Avatar influencer={active} size={24} />
         <span className="font-medium">{active.name}</span>
@@ -128,12 +154,12 @@ function InfluencerPicker({
         <ChevronDown className="size-4 text-muted-foreground" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-xl border border-border bg-popover p-1 shadow-card">
+        <div className="absolute left-0 top-full z-20 mt-1.5 w-72 rounded-xl border border-border bg-popover p-1 shadow-card">
           {influencers.map((i) => (
             <button
               key={i.id}
               onClick={() => { onSelect(i.id); setOpen(false); }}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted"
+              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
             >
               <Avatar influencer={i} size={32} />
               <div className="flex-1">
@@ -232,57 +258,59 @@ function ProfileSection({ influencer }: { influencer: Influencer }) {
     <div className="max-w-2xl space-y-5">
       <h2 className="text-xl font-semibold">Perfil del Influencer</h2>
       <Field label="Nombre">
-        <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <input className={INPUT_CLS} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
       </Field>
       <Field label="Slug (URL)">
-        <input className="input" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />
-        <p className="mt-1 text-xs text-muted-foreground">alterego.app/{form.slug}</p>
+        <input className={INPUT_CLS} value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />
+        <p className="mt-1.5 text-xs text-muted-foreground">alterego.app/{form.slug}</p>
       </Field>
       <Field label="Foto">
         <div className="flex gap-2">
-          <input className="input" value={form.photo_url} onChange={(e) => setForm({ ...form, photo_url: e.target.value })} placeholder="https://…" />
-          <button onClick={() => fileRef.current?.click()} className="btn-secondary">Subir imagen</button>
+          <input className={INPUT_CLS} value={form.photo_url} onChange={(e) => setForm({ ...form, photo_url: e.target.value })} placeholder="https://…" />
+          <button onClick={() => fileRef.current?.click()} className={`${BTN_SECONDARY} shrink-0`}>Subir imagen</button>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">JPG o PNG, máx 2MB, mín 400×400 cuadrada.</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">JPG o PNG, máx 2MB, mín 400×400 cuadrada.</p>
       </Field>
       <Field label="Frase característica">
-        <input className="input" value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} />
+        <input className={INPUT_CLS} value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} />
       </Field>
       <Field label="Bio corta">
-        <textarea className="input min-h-[80px]" value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
+        <textarea className={`${TEXTAREA_CLS} min-h-[80px]`} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
       </Field>
       <Field label="Prompt del sistema (personalidad del clon)">
         <textarea
-          className="input min-h-[120px] font-mono text-xs"
+          className={`${TEXTAREA_CLS} min-h-[120px] font-mono text-xs`}
           value={form.system_prompt}
           onChange={(e) => setForm({ ...form, system_prompt: e.target.value })}
           placeholder={`Eres ${influencer.name}. Responde siempre en primera persona con tono conversacional…`}
         />
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1.5 text-xs text-muted-foreground">
           Define la personalidad base del clon. Si está vacío, se genera automáticamente desde la bio.
         </p>
       </Field>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Color acento">
-          <input type="color" value={form.accent_color} onChange={(e) => setForm({ ...form, accent_color: e.target.value })} className="h-10 w-full rounded-lg border border-border" />
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2">
+            <input
+              type="color"
+              value={form.accent_color}
+              onChange={(e) => setForm({ ...form, accent_color: e.target.value })}
+              className="size-8 cursor-pointer rounded-lg border-0 bg-transparent p-0 outline-none"
+            />
+            <span className="font-mono text-sm text-foreground">{form.accent_color}</span>
+          </div>
         </Field>
         <Field label="Badge">
-          <input className="input" value={form.badge_label} onChange={(e) => setForm({ ...form, badge_label: e.target.value })} />
+          <input className={INPUT_CLS} value={form.badge_label} onChange={(e) => setForm({ ...form, badge_label: e.target.value })} />
         </Field>
       </div>
       <div className="flex items-center gap-3">
-        <button onClick={save} disabled={saving} className="btn-primary">{saving ? "Guardando…" : "Guardar cambios"}</button>
+        <button onClick={save} disabled={saving} className={BTN_PRIMARY}>
+          {saving ? <><Spinner /> Guardando…</> : "Guardar cambios"}
+        </button>
         {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
       </div>
-
-      <style>{`
-        .input { width: 100%; border: 1px solid var(--color-border); background: var(--color-card); border-radius: 10px; padding: 8px 12px; font-size: 14px; outline: none; }
-        .input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 15%, transparent); }
-        .btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); padding: 8px 16px; border-radius: 10px; font-size: 14px; font-weight: 500; }
-        .btn-primary:disabled { opacity: 0.6; }
-        .btn-secondary { background: var(--color-muted); color: var(--color-foreground); padding: 8px 14px; border-radius: 10px; font-size: 14px; }
-      `}</style>
     </div>
   );
 }
@@ -324,7 +352,7 @@ function TrainSection({ influencer }: { influencer: Influencer }) {
           <button
             key={k}
             onClick={() => setTab(k as any)}
-            className={`flex-1 rounded-lg px-3 py-2 transition-colors ${tab === k ? "bg-primary-soft text-primary" : "text-muted-foreground hover:text-foreground"}`}
+            className={`flex-1 rounded-lg px-3 py-2 font-medium transition-colors ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
             {l}
           </button>
@@ -396,23 +424,33 @@ function ChannelTab({ influencer }: { influencer: Influencer }) {
       <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
         ⚠️ Para mejores resultados, procesa solo videos donde el influencer habla principalmente solo: vlogs, tutoriales o Q&As. Evita sketches o videos grupales.
       </div>
-      <p className="text-xs text-muted-foreground">Ejemplo: https://youtube.com/@nombre-del-canal</p>
-      <input className="input" placeholder="URL del canal" value={url} onChange={(e) => setUrl(e.target.value)} />
-      <select className="input" value={limit} onChange={(e) => setLimit(e.target.value as any)}>
-        <option value="all">Todos los videos</option>
-        <option value="50">Últimos 50</option>
-        <option value="100">Últimos 100</option>
-      </select>
-      <Field label="Palabras a ignorar">
-        <textarea className="input min-h-[60px]" value={ignore} onChange={(e) => setIgnore(e.target.value)} />
+      <Field label="URL del canal">
+        <input className={INPUT_CLS} placeholder="https://youtube.com/@nombre-del-canal" value={url} onChange={(e) => setUrl(e.target.value)} />
       </Field>
-      <button onClick={run} disabled={running || !url} className="btn-primary">Procesar canal</button>
+      <Field label="Cantidad de videos">
+        <SelectWrap>
+          <select className={SELECT_CLS} value={limit} onChange={(e) => setLimit(e.target.value as any)}>
+            <option value="50">Últimos 50</option>
+            <option value="100">Últimos 100</option>
+            <option value="all">Todos los videos</option>
+          </select>
+        </SelectWrap>
+      </Field>
+      <Field label="Palabras a ignorar">
+        <textarea className={`${TEXTAREA_CLS} min-h-[60px]`} value={ignore} onChange={(e) => setIgnore(e.target.value)} />
+      </Field>
+      <button onClick={run} disabled={running || !url} className={`${BTN_PRIMARY} w-full py-3`}>
+        {running ? <><Spinner /> Procesando…</> : "Procesar canal"}
+      </button>
       {running || progress > 0 ? (
         <div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+            <div className="h-full rounded-full bg-primary transition-all duration-500 ease-out" style={{ width: `${progress}%` }} />
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">{stage}</p>
+          <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+            {running && <Spinner className="text-primary" />}
+            {stage}
+          </p>
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -424,15 +462,15 @@ function ChannelTab({ influencer }: { influencer: Influencer }) {
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Video</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Estado</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Video</th>
+                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">Estado</th>
               </tr>
             </thead>
             <tbody>
               {processedVideos.map((v, i) => (
                 <tr key={i} className="border-b border-border/40 last:border-0">
-                  <td className="max-w-xs truncate px-4 py-2">{v.title}</td>
-                  <td className="px-4 py-2 text-right text-emerald-600">{v.status}</td>
+                  <td className="max-w-xs truncate px-4 py-2.5">{v.title}</td>
+                  <td className="px-4 py-2.5 text-right text-emerald-600">{v.status}</td>
                 </tr>
               ))}
             </tbody>
@@ -460,11 +498,15 @@ function VideoTab({ influencer }: { influencer: Influencer }) {
   }
   return (
     <div className="space-y-4">
-      <input className="input" placeholder="URL del video" value={url} onChange={(e) => setUrl(e.target.value)} />
-      <Field label="Palabras a ignorar">
-        <textarea className="input min-h-[60px]" value={ignore} onChange={(e) => setIgnore(e.target.value)} />
+      <Field label="URL del video">
+        <input className={INPUT_CLS} placeholder="https://youtube.com/watch?v=…" value={url} onChange={(e) => setUrl(e.target.value)} />
       </Field>
-      <button onClick={run} disabled={running || !url} className="btn-primary">Procesar video</button>
+      <Field label="Palabras a ignorar">
+        <textarea className={`${TEXTAREA_CLS} min-h-[60px]`} value={ignore} onChange={(e) => setIgnore(e.target.value)} />
+      </Field>
+      <button onClick={run} disabled={running || !url} className={`${BTN_PRIMARY} w-full py-3`}>
+        {running ? <><Spinner /> Procesando…</> : "Procesar video"}
+      </button>
       {done && <p className="text-sm text-emerald-600">✅ Video procesado (simulación MVP).</p>}
     </div>
   );
@@ -510,15 +552,25 @@ function ManualTab({ influencer }: { influencer: Influencer }) {
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
         💡 Obtén transcripciones de YouTube con <a href="https://tactiq.io" target="_blank" rel="noreferrer" className="underline">Tactiq</a> o <a href="https://downsub.com" target="_blank" rel="noreferrer" className="underline">Downsub</a> y pégalas aquí.
       </div>
-      <input className="input" placeholder="Título o fuente" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <select className="input" value={lang} onChange={(e) => setLang(e.target.value)}>
-        <option value="es">Español</option>
-        <option value="en">Inglés</option>
-        <option value="pt">Portugués</option>
-      </select>
-      <textarea className="input min-h-[200px]" placeholder="Pega aquí la transcripción…" value={text} onChange={(e) => setText(e.target.value)} />
+      <Field label="Título o fuente">
+        <input className={INPUT_CLS} placeholder="Ej: Entrevista en Podcast X" value={title} onChange={(e) => setTitle(e.target.value)} />
+      </Field>
+      <Field label="Idioma">
+        <SelectWrap>
+          <select className={SELECT_CLS} value={lang} onChange={(e) => setLang(e.target.value)}>
+            <option value="es">Español</option>
+            <option value="en">Inglés</option>
+            <option value="pt">Portugués</option>
+          </select>
+        </SelectWrap>
+      </Field>
+      <Field label="Transcripción">
+        <textarea className={`${TEXTAREA_CLS} min-h-[200px]`} placeholder="Pega aquí la transcripción…" value={text} onChange={(e) => setText(e.target.value)} />
+      </Field>
       <p className="text-xs text-muted-foreground">{text.length} caracteres · ~{estFragments} fragmentos</p>
-      <button onClick={run} disabled={running || text.length < 20} className="btn-primary">{running ? "Procesando…" : "Procesar transcripción"}</button>
+      <button onClick={run} disabled={running || text.length < 20} className={`${BTN_PRIMARY} w-full py-3`}>
+        {running ? <><Spinner /> Procesando…</> : "Procesar transcripción"}
+      </button>
       {msg && <p className="text-sm">{msg}</p>}
       {data?.transcripts && data.transcripts.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-4">
@@ -650,24 +702,37 @@ function InterviewTab({ influencer }: { influencer: Influencer }) {
       <div className="rounded-xl border border-border bg-card p-4">
         <p className="text-sm text-muted-foreground">10 preguntas base · ~15 minutos · Personalidad · Temas · Filosofía · Estilo · Logros</p>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div className="h-full bg-primary" style={{ width: `${((step + 1) / INTERVIEW_QUESTIONS.length) * 100}%` }} />
+          <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${((step + 1) / INTERVIEW_QUESTIONS.length) * 100}%` }} />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Pregunta {step + 1} de {INTERVIEW_QUESTIONS.length} · ~{minutesLeft} min restantes
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         {isFollowUp && (
           <span className="mb-3 inline-block rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
             Seguimiento
           </span>
         )}
         <p className="text-base font-medium">{q}</p>
-        <textarea className="input mt-3 min-h-[120px]" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Tu respuesta…" />
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={() => submit(false)} disabled={submitting || answer.trim().length < 5} className="btn-primary">{submitting ? "Guardando…" : "Siguiente"}</button>
-          <button onClick={dictate} className="btn-secondary">🎙 Dictar</button>
-          <button onClick={() => submit(true)} className="text-sm text-muted-foreground hover:text-foreground">Saltar esta pregunta →</button>
+        <textarea className={`${TEXTAREA_CLS} mt-3 min-h-[120px]`} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Tu respuesta…" />
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => submit(false)}
+            disabled={submitting || answer.trim().length < 5}
+            className={`${BTN_PRIMARY} px-5`}
+          >
+            {submitting ? <><Spinner /> Guardando…</> : "Siguiente →"}
+          </button>
+          <button onClick={dictate} className={BTN_SECONDARY}>
+            <Mic className="size-4" /> Dictar
+          </button>
+          <button
+            onClick={() => submit(true)}
+            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Saltar esta pregunta →
+          </button>
         </div>
       </div>
     </div>
@@ -760,16 +825,15 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
         <StatCard label="Límite alcanzado" value={limitReachedSessions.size} />
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <h4 className="mb-4 text-sm font-medium">Mensajes últimos 7 días</h4>
         <div className="flex h-32 items-end gap-2">
           {days.map((v, i) => (
             <div key={i} className="flex flex-1 flex-col items-center gap-1">
               <div
-                className="w-full rounded-t"
+                className={`w-full rounded-t transition-all ${i === 6 ? "bg-primary" : "bg-primary-soft"}`}
                 style={{
                   height: `${(v / maxDay) * 100}%`,
-                  background: i === 6 ? "var(--color-primary)" : "var(--color-primary-soft)",
                   minHeight: 4,
                 }}
               />
@@ -780,7 +844,7 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-2xl border border-border bg-card p-5">
           <h4 className="mb-3 text-sm font-medium">Preguntas frecuentes</h4>
           {topQuestions.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aún sin preguntas registradas.</p>
@@ -800,14 +864,14 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
             </ul>
           )}
         </div>
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-2xl border border-border bg-card p-5">
           <h4 className="mb-3 text-sm font-medium">Hora pico de actividad</h4>
           <div className="space-y-1 text-xs">
             {hourly.map((v, i) => (
               <div key={i} className="flex items-center gap-2">
                 <span className="w-10 text-muted-foreground">{i.toString().padStart(2, "0")}h</span>
                 <div className="flex-1 rounded-full bg-muted">
-                  <div className="h-2 rounded-full" style={{ width: `${(v / maxHour) * 100}%`, background: i === peakHour ? "var(--color-primary)" : "var(--color-primary-soft)" }} />
+                  <div className={`h-2 rounded-full ${i === peakHour ? "bg-primary" : "bg-primary-soft"}`} style={{ width: `${(v / maxHour) * 100}%` }} />
                 </div>
                 <span className="w-6 text-right text-muted-foreground">{v}</span>
               </div>
@@ -816,7 +880,7 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <h4 className="mb-3 text-sm font-medium">Duración de conversaciones</h4>
         <div className="space-y-2 text-sm">
           {Object.entries(bucketCounts).map(([k, v]) => (
@@ -839,13 +903,14 @@ function AnalyticsSection({ influencer }: { influencer: Influencer }) {
 
 function StatCard({ label, value, delta, deltaLabel }: { label: string; value: number | string; delta?: number; deltaLabel?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold">{value}</div>
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
       {typeof delta === "number" && (
-        <div className={`mt-1 text-xs ${delta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-          {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)} {deltaLabel ?? "vs ayer"}
-        </div>
+        <p className={`mt-1.5 flex items-center gap-1 text-xs font-medium ${delta >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
+          <span>{delta >= 0 ? "↑" : "↓"} {Math.abs(delta)}</span>
+          {deltaLabel && <span className="font-normal text-muted-foreground">{deltaLabel}</span>}
+        </p>
       )}
     </div>
   );

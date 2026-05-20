@@ -160,7 +160,7 @@ function ChatPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur-md shadow-[0_1px_0_0_var(--color-border)]">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
           <Link to="/$slug" params={{ slug }} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" /> Volver
@@ -188,7 +188,7 @@ function ChatPage() {
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="rounded-full border border-border bg-card px-3 py-1.5 text-sm text-foreground hover:bg-accent"
+                  className="cursor-pointer rounded-full border border-border bg-card px-4 py-2 text-sm text-foreground transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
                 >
                   {s}
                 </button>
@@ -223,7 +223,7 @@ function ChatPage() {
 
       <div className="border-t border-border/60 bg-background/95 backdrop-blur">
         <div className="mx-auto max-w-2xl px-4 py-3">
-          <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-soft">
+          <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-soft transition-all focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
             <button
               onClick={dictate}
               className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
