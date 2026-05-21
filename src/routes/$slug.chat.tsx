@@ -358,12 +358,16 @@ function VoiceCall({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ influencer_id: influencer.id }),
         });
-        if (!tokenRes.ok) throw new Error("No se pudo iniciar la llamada");
-        const { token, model } = (await tokenRes.json()) as { token?: string; model?: string };
-        if (!token) throw new Error("Token inválido");
+if (!tokenRes.ok) throw new Error("No se pudo iniciar la llamada");
+const { token, apiKey, model, mode } = (await tokenRes.json()) as {
+  token?: string; apiKey?: string; model?: string; mode?: string;
+};
+if (!token && !apiKey) throw new Error("No se pudo autenticar con el servicio de voz");
 
-        const liveModel = model ?? "gemini-live-2.5-flash-preview";
-        const WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`;
+const liveModel = model ?? "gemini-live-2.5-flash-preview";
+const WS_URL = mode === "apikey" && apiKey
+  ? `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`
+  : `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`;
         const ws = new WebSocket(WS_URL);
         wsRef.current = ws;
 
