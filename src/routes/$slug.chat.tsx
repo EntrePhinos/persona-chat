@@ -283,168 +283,252 @@ function ChatPage() {
   );
 }
 
+type CallStatus = "connecting" | "listening" | "thinking" | "speaking" | "error";
+
 function VoiceCall({
   influencer,
-  sessionId,
-  baseHistory,
   onClose,
 }: {
   influencer: { id: string; name: string; photo_url: string | null; accent_color: string | null };
-  sessionId: string;
-  baseHistory: Msg[];
   onClose: () => void;
 }) {
-  const [status, setStatus] = useState<"listening" | "thinking" | "speaking">("listening");
-  const historyRef = useRef<Msg[]>(baseHistory.slice(-8));
-  const recRef = useRef<any>(null);
-  const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const transcriptRef = useRef<string>("");
-  const speakingRef = useRef(false);
+  const [status, setStatus] = useState<CallStatus>("connecting");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const captureCtxRef = useRef<AudioContext | null>(null);
+  const playbackCtxRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioQueueRef = useRef<AudioBuffer[]>([]);
+  const isPlayingRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const statusRef = useRef<CallStatus>("connecting");
+
+  const setCallStatus = (s: CallStatus) => {
+    statusRef.current = s;
+    if (isMountedRef.current) setStatus(s);
+  };
+
+  function pcm16ToAudioBuffer(ctx: AudioContext, data: ArrayBuffer): AudioBuffer {
+    const pcm = new Int16Array(data);
+    const float32 = new Float32Array(pcm.length);
+    for (let i = 0; i < pcm.length; i++) float32[i] = pcm[i] / 32768;
+    const buffer = ctx.createBuffer(1, float32.length, 24000);
+    buffer.copyToChannel(float32, 0);
+    return buffer;
+  }
+
+  function playNext() {
+    const ctx = playbackCtxRef.current;
+    if (!ctx) return;
+    if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
+    const buffer = audioQueueRef.current.shift()!;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    isPlayingRef.current = true;
+    setCallStatus("speaking");
+    source.onended = () => {
+      isPlayingRef.current = false;
+      if (audioQueueRef.current.length > 0) playNext();
+      else setCallStatus("listening");
+    };
+    source.start();
+  }
+
+  const hangUp = useCallback(() => {
+    isMountedRef.current = false;
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    try { processorRef.current?.disconnect(); } catch { /* */ }
+    try { captureCtxRef.current?.close(); } catch { /* */ }
+    try { playbackCtxRef.current?.close(); } catch { /* */ }
+    if (wsRef.current) {
+      try { wsRef.current.close(); } catch { /* */ }
+      wsRef.current = null;
+    }
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
-    const SR =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      alert("Tu navegador no soporta llamadas de voz.");
-      onClose();
-      return;
-    }
-    const rec = new SR();
-    rec.lang = "es-ES";
-    rec.continuous = true;
-    rec.interimResults = true;
-    recRef.current = rec;
+    isMountedRef.current = true;
 
-    rec.onresult = (e: any) => {
-      if (speakingRef.current) {
-        window.speechSynthesis.cancel();
-        speakingRef.current = false;
+    async function startCall() {
+      try {
+        const tokenRes = await fetch("/api/live-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ influencer_id: influencer.id }),
+        });
+        if (!tokenRes.ok) throw new Error("No se pudo iniciar la llamada");
+        const { token } = (await tokenRes.json()) as { token?: string };
+        if (!token) throw new Error("Token inválido");
+
+        const WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`;
+        const ws = new WebSocket(WS_URL);
+        wsRef.current = ws;
+
+        ws.onopen = async () => {
+          if (!isMountedRef.current) return;
+          ws.send(JSON.stringify({
+            setup: {
+              model: "models/gemini-2.5-flash-exp-native-audio-thinking-08-01",
+              generationConfig: {
+                responseModalities: ["AUDIO"],
+                speechConfig: {
+                  voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
+                },
+              },
+            },
+          }));
+
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                sampleRate: 16000,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+              },
+            });
+            mediaStreamRef.current = stream;
+
+            const captureCtx = new AudioContext({ sampleRate: 16000 });
+            captureCtxRef.current = captureCtx;
+            playbackCtxRef.current = new AudioContext({ sampleRate: 24000 });
+
+            const source = captureCtx.createMediaStreamSource(stream);
+            const processor = captureCtx.createScriptProcessor(4096, 1, 1);
+            processorRef.current = processor;
+
+            processor.onaudioprocess = (e) => {
+              if (ws.readyState !== WebSocket.OPEN) return;
+              const float32 = e.inputBuffer.getChannelData(0);
+              const pcm16 = new Int16Array(float32.length);
+              for (let i = 0; i < float32.length; i++) {
+                pcm16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+              }
+              const bytes = new Uint8Array(pcm16.buffer);
+              let bin = "";
+              for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+              const base64Audio = btoa(bin);
+              ws.send(JSON.stringify({
+                realtimeInput: {
+                  mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: base64Audio }],
+                },
+              }));
+            };
+
+            source.connect(processor);
+            processor.connect(captureCtx.destination);
+
+            setCallStatus("listening");
+          } catch {
+            setErrorMsg("No se pudo acceder al micrófono. Revisa los permisos.");
+            setCallStatus("error");
+          }
+        };
+
+        ws.onmessage = async (event) => {
+          if (!isMountedRef.current) return;
+          try {
+            const raw = typeof event.data === "string"
+              ? event.data
+              : await (event.data as Blob).text();
+            const data = JSON.parse(raw);
+
+            if (data.serverContent?.generationComplete === false) {
+              if (statusRef.current !== "speaking") setCallStatus("thinking");
+            }
+
+            const parts = data.serverContent?.modelTurn?.parts ?? [];
+            for (const part of parts) {
+              if (part.inlineData?.mimeType?.startsWith("audio/pcm")) {
+                const rawBase64 = part.inlineData.data as string;
+                const binary = atob(rawBase64);
+                const buffer = new ArrayBuffer(binary.length);
+                const view = new Uint8Array(buffer);
+                for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
+                if (playbackCtxRef.current) {
+                  audioQueueRef.current.push(
+                    pcm16ToAudioBuffer(playbackCtxRef.current, buffer)
+                  );
+                  playNext();
+                }
+              }
+            }
+
+            if (data.serverContent?.interrupted) {
+              audioQueueRef.current = [];
+              isPlayingRef.current = false;
+              setCallStatus("listening");
+            }
+          } catch {
+            /* ignore */
+          }
+        };
+
+        ws.onerror = () => {
+          if (!isMountedRef.current) return;
+          setErrorMsg("Error de conexión con el servicio de voz.");
+          setCallStatus("error");
+        };
+
+        ws.onclose = () => {
+          if (!isMountedRef.current) return;
+          if (statusRef.current !== "connecting" && statusRef.current !== "error") {
+            setErrorMsg("La llamada se desconectó.");
+            setCallStatus("error");
+          }
+        };
+      } catch (err) {
+        if (!isMountedRef.current) return;
+        setErrorMsg(err instanceof Error ? err.message : "No se pudo iniciar la llamada");
+        setCallStatus("error");
       }
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        interim += e.results[i][0].transcript;
-      }
-      transcriptRef.current = interim;
-      if (silenceTimer.current) clearTimeout(silenceTimer.current);
-      silenceTimer.current = setTimeout(() => {
-        const final = transcriptRef.current.trim();
-        if (final) processTurn(final);
-        transcriptRef.current = "";
-      }, 2500);
-    };
-    rec.onerror = (e: any) => console.warn("rec error", e);
-    rec.onend = () => {
-      // Chrome stops recognition after ~60s; restart while the call is active.
-      if (recRef.current) {
-        try { rec.start(); } catch { /* already running */ }
-      }
-    };
-    rec.start();
+    }
+
+    startCall();
 
     return () => {
-      recRef.current = null;
-      try { rec.stop(); } catch { /* */ }
-      window.speechSynthesis.cancel();
-      if (silenceTimer.current) clearTimeout(silenceTimer.current);
+      isMountedRef.current = false;
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      try { processorRef.current?.disconnect(); } catch { /* */ }
+      try { captureCtxRef.current?.close(); } catch { /* */ }
+      try { playbackCtxRef.current?.close(); } catch { /* */ }
+      try { wsRef.current?.close(); } catch { /* */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function processTurn(text: string) {
-    setStatus("thinking");
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          session_id: sessionId,
-          influencer_id: influencer.id,
-          history: historyRef.current,
-        }),
-      });
-      if (!res.ok || !res.body) {
-        setStatus("listening");
-        return;
-      }
-      historyRef.current = [...historyRef.current, { role: "user", content: text }];
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      let sentence = "";
-      let full = "";
-      setStatus("speaking");
-      speakingRef.current = true;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const raw of lines) {
-          const line = raw.trim();
-          if (!line.startsWith("data:")) continue;
-          const payload = line.slice(5).trim();
-          if (payload === "[DONE]" || !payload) continue;
-          try {
-            const j = JSON.parse(payload);
-            const d = j.delta as string | undefined;
-            if (!d) continue;
-            sentence += d;
-            full += d;
-            if (/[.?!,]\s*$/.test(sentence)) {
-              speak(sentence.trim());
-              sentence = "";
-            }
-          } catch { /* */ }
-        }
-      }
-      if (sentence.trim()) speak(sentence.trim());
-      historyRef.current = [...historyRef.current, { role: "assistant" as const, content: full }].slice(-16);
-    } finally {
-      // status reverts when speech ends
-      setTimeout(() => {
-        if (!speakingRef.current) setStatus("listening");
-      }, 500);
-    }
-  }
-
-  function speak(t: string) {
-    const u = new SpeechSynthesisUtterance(t);
-    u.lang = "es-ES";
-    u.rate = 1.05;
-    u.onend = () => {
-      if (!window.speechSynthesis.speaking) {
-        speakingRef.current = false;
-        setStatus("listening");
-      }
-    };
-    window.speechSynthesis.speak(u);
-  }
-
-  function hangUp() {
-    recRef.current = null;
-    try { recRef.current?.stop(); } catch { /* */ }
-    window.speechSynthesis.cancel();
-    onClose();
-  }
-
-  const statusLabel =
-    status === "listening" ? "Escuchando..." : status === "thinking" ? "Pensando..." : "Hablando...";
+  const statusLabel: Record<CallStatus, string> = {
+    connecting: "Conectando...",
+    listening: "Escuchando...",
+    thinking: "Pensando...",
+    speaking: "Hablando...",
+    error: errorMsg || "Error de conexión",
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-primary p-8 text-primary-foreground">
-      <div className="text-sm font-medium uppercase tracking-widest opacity-80">Llamada en vivo</div>
+      <div className="text-sm font-medium uppercase tracking-widest opacity-80">
+        Llamada en vivo · Gemini
+      </div>
       <div className="flex flex-col items-center gap-6">
         <div className="relative">
-          <div className="pulse-ring absolute inset-0 rounded-full bg-white/20" />
+          {(status === "listening" || status === "speaking" || status === "thinking") && (
+            <div className="pulse-ring absolute inset-0 rounded-full bg-white/20" />
+          )}
           <div className="relative">
             <Avatar influencer={influencer as any} size={160} />
           </div>
         </div>
         <div className="text-center">
           <h2 className="text-3xl font-semibold">{influencer.name}</h2>
-          <p className="mt-2 text-lg opacity-90">{statusLabel}</p>
+          <p className="mt-2 text-lg opacity-90">{statusLabel[status]}</p>
+          {status === "error" && (
+            <p className="mt-2 max-w-xs text-sm opacity-75">{errorMsg}</p>
+          )}
         </div>
       </div>
       <button
