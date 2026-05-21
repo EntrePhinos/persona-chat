@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SlugIndexRouteImport } from './routes/$slug.index'
+import { Route as ApiLiveTokenRouteImport } from './routes/api/live-token'
 import { Route as ApiIngestTextRouteImport } from './routes/api/ingest-text'
 import { Route as ApiIngestRouteImport } from './routes/api/ingest'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
@@ -30,6 +31,11 @@ const IndexRoute = IndexRouteImport.update({
 const SlugIndexRoute = SlugIndexRouteImport.update({
   id: '/$slug/',
   path: '/$slug/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLiveTokenRoute = ApiLiveTokenRouteImport.update({
+  id: '/api/live-token',
+  path: '/api/live-token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiIngestTextRoute = ApiIngestTextRouteImport.update({
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/ingest': typeof ApiIngestRoute
   '/api/ingest-text': typeof ApiIngestTextRoute
+  '/api/live-token': typeof ApiLiveTokenRoute
   '/$slug/': typeof SlugIndexRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/ingest': typeof ApiIngestRoute
   '/api/ingest-text': typeof ApiIngestTextRoute
+  '/api/live-token': typeof ApiLiveTokenRoute
   '/$slug': typeof SlugIndexRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/ingest': typeof ApiIngestRoute
   '/api/ingest-text': typeof ApiIngestTextRoute
+  '/api/live-token': typeof ApiLiveTokenRoute
   '/$slug/': typeof SlugIndexRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/ingest'
     | '/api/ingest-text'
+    | '/api/live-token'
     | '/$slug/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/ingest'
     | '/api/ingest-text'
+    | '/api/live-token'
     | '/$slug'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/ingest'
     | '/api/ingest-text'
+    | '/api/live-token'
     | '/$slug/'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiIngestRoute: typeof ApiIngestRoute
   ApiIngestTextRoute: typeof ApiIngestTextRoute
+  ApiLiveTokenRoute: typeof ApiLiveTokenRoute
   SlugIndexRoute: typeof SlugIndexRoute
 }
 
@@ -142,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/$slug'
       fullPath: '/$slug/'
       preLoaderRoute: typeof SlugIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/live-token': {
+      id: '/api/live-token'
+      path: '/api/live-token'
+      fullPath: '/api/live-token'
+      preLoaderRoute: typeof ApiLiveTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ingest-text': {
@@ -182,18 +202,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiIngestRoute: ApiIngestRoute,
   ApiIngestTextRoute: ApiIngestTextRoute,
+  ApiLiveTokenRoute: ApiLiveTokenRoute,
   SlugIndexRoute: SlugIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
