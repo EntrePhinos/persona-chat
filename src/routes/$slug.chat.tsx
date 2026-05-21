@@ -359,9 +359,10 @@ function VoiceCall({
           body: JSON.stringify({ influencer_id: influencer.id }),
         });
         if (!tokenRes.ok) throw new Error("No se pudo iniciar la llamada");
-        const { token } = (await tokenRes.json()) as { token?: string };
+        const { token, model } = (await tokenRes.json()) as { token?: string; model?: string };
         if (!token) throw new Error("Token inválido");
 
+        const liveModel = model ?? "gemini-live-2.5-flash-preview";
         const WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`;
         const ws = new WebSocket(WS_URL);
         wsRef.current = ws;
@@ -370,7 +371,7 @@ function VoiceCall({
           if (!isMountedRef.current) return;
           ws.send(JSON.stringify({
             setup: {
-              model: "models/gemini-2.5-flash-exp-native-audio-thinking-08-01",
+              model: `models/${liveModel}`,
               generationConfig: {
                 responseModalities: ["AUDIO"],
                 speechConfig: {
