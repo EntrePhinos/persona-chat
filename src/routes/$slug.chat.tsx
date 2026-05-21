@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Avatar, Logo, PulseDot, Badge } from "@/components/brand";
 import { getInfluencerBySlug } from "@/lib/influencer.functions";
