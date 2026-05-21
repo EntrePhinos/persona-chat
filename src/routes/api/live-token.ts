@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-const MODEL = "models/gemini-2.5-flash-exp-native-audio-thinking-08-01";
+// Current Gemini Live API model (native audio dialog). See:
+// https://ai.google.dev/gemini-api/docs/live-api/ephemeral-tokens
+const MODEL = "gemini-live-2.5-flash-preview";
 
 export const Route = createFileRoute("/api/live-token")({
   server: {
@@ -44,40 +46,57 @@ REGLAS PARA LLAMADAS DE VOZ:
             }
           }
 
+          const now = Date.now();
+          const expireTime = new Date(now + 30 * 60 * 1000).toISOString();
+          const newSessionExpireTime = new Date(now + 60 * 1000).toISOString();
+
+          // REST endpoint for ephemeral tokens lives under v1alpha/authTokens.
           const ephemeralRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/ephemeralTokens?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1alpha/authTokens?key=${apiKey}`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                model: MODEL,
-                config: {
-                  responseModalities: ["AUDIO"],
-                  systemInstruction: { parts: [{ text: instructions }] },
-                  speechConfig: {
-                    voiceConfig: {
-                      prebuiltVoiceConfig: { voiceName: "Aoede" },
+                uses: 1,
+                expireTime,
+                newSessionExpireTime,
+                liveConnectConstraints: {
+                  model: MODEL,
+                  config: {
+                    responseModalities: ["AUDIO"],
+                    systemInstruction: { parts: [{ text: instructions }] },
+                    speechConfig: {
+                      voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName: "Aoede" },
+                      },
                     },
                   },
                 },
-                ttl: "60s",
               }),
             }
           );
 
           if (!ephemeralRes.ok) {
             const err = await ephemeralRes.text();
-            console.error("Gemini ephemeral token error:", err);
+            console.error("Gemini ephemeral token error:", ephemeralRes.status, err);
             return new Response(
-              JSON.stringify({ error: "No se pudo crear sesión de voz" }),
+              JSON.stringify({ error: "No se pudo crear sesión de voz", details: err }),
               { status: 500, headers: { "Content-Type": "application/json" } }
             );
           }
 
-          const json = (await ephemeralRes.json()) as { token?: string; name?: string };
-          const token = json.token ?? json.name;
+          // Response shape: { name: "authTokens/xxx", expireTime, newSessionExpireTime, ... }
+          const json = (await ephemeralRes.json()) as { name?: string };
+          const token = json.name;
 
-          return new Response(JSON.stringify({ token }), {
+          if (!token) {
+            return new Response(
+              JSON.stringify({ error: "Respuesta inválida del proveedor" }),
+              { status: 500, headers: { "Content-Type": "application/json" } }
+            );
+          }
+
+          return new Response(JSON.stringify({ token, model: MODEL }), {
             headers: { "Content-Type": "application/json" },
           });
         } catch (err) {
