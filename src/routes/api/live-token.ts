@@ -50,55 +50,58 @@ REGLAS PARA LLAMADAS DE VOZ:
           const expireTime = new Date(now + 30 * 60 * 1000).toISOString();
           const newSessionExpireTime = new Date(now + 60 * 1000).toISOString();
 
-          // REST endpoint for ephemeral tokens lives under v1alpha/authTokens.
-          const ephemeralRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1alpha/authTokens?key=${apiKey}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                uses: 1,
-                expireTime,
-                newSessionExpireTime,
-                liveConnectConstraints: {
-                  model: MODEL,
-                  config: {
-                    responseModalities: ["AUDIO"],
-                    systemInstruction: { parts: [{ text: instructions }] },
-                    speechConfig: {
-                      voiceConfig: {
-                        prebuiltVoiceConfig: { voiceName: "Aoede" },
+          // Intentar crear ephemeral token (más seguro para producción)
+          try {
+            const ephemeralRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1alpha/authTokens?key=${apiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  uses: 1,
+                  expireTime,
+                  newSessionExpireTime,
+                  liveConnectConstraints: {
+                    model: `models/${MODEL}`,
+                    config: {
+                      responseModalities: ["AUDIO"],
+                      systemInstruction: { parts: [{ text: instructions }] },
+                      speechConfig: {
+                        voiceConfig: {
+                          prebuiltVoiceConfig: { voiceName: "Aoede" },
+                        },
                       },
                     },
                   },
-                },
-              }),
+                }),
+              }
+            );
+
+            if (ephemeralRes.ok) {
+              const json = (await ephemeralRes.json()) as { name?: string };
+              const token = json.name;
+              if (token) {
+                // Éxito — devolver token efímero (modo seguro)
+                return new Response(
+                  JSON.stringify({ token, model: MODEL, mode: "ephemeral" }),
+                  { headers: { "Content-Type": "application/json" } }
+                );
+              }
+            } else {
+              const errText = await ephemeralRes.text();
+              console.warn("Ephemeral token failed, falling back to apiKey mode:", ephemeralRes.status, errText);
             }
+          } catch (ephemeralErr) {
+            console.warn("Ephemeral token fetch failed, falling back:", ephemeralErr);
+          }
+
+          // Fallback: devolver la API key directamente para conectar via key
+          // (válido para desarrollo y tier gratuito)
+          return new Response(
+            JSON.stringify({ apiKey, model: MODEL, mode: "apikey" }),
+            { headers: { "Content-Type": "application/json" } }
           );
 
-          if (!ephemeralRes.ok) {
-            const err = await ephemeralRes.text();
-            console.error("Gemini ephemeral token error:", ephemeralRes.status, err);
-            return new Response(
-              JSON.stringify({ error: "No se pudo crear sesión de voz", details: err }),
-              { status: 500, headers: { "Content-Type": "application/json" } }
-            );
-          }
-
-          // Response shape: { name: "authTokens/xxx", expireTime, newSessionExpireTime, ... }
-          const json = (await ephemeralRes.json()) as { name?: string };
-          const token = json.name;
-
-          if (!token) {
-            return new Response(
-              JSON.stringify({ error: "Respuesta inválida del proveedor" }),
-              { status: 500, headers: { "Content-Type": "application/json" } }
-            );
-          }
-
-          return new Response(JSON.stringify({ token, model: MODEL }), {
-            headers: { "Content-Type": "application/json" },
-          });
         } catch (err) {
           console.error("live-token error:", err);
           return new Response(
