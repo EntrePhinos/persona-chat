@@ -274,8 +274,6 @@ function ChatPage() {
       {callOpen && (
         <VoiceCall
           influencer={inf}
-          sessionId={sessionId}
-          baseHistory={messages}
           onClose={() => setCallOpen(false)}
         />
       )}
