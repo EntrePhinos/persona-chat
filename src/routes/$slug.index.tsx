@@ -81,13 +81,21 @@ function Landing() {
             </>
           )}
 
-          <div className="mt-8">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               to="/$slug/chat"
               params={{ slug: inf.slug }}
               className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-medium text-primary-foreground shadow-soft transition-transform hover:scale-[1.02]"
             >
               Hablar con {inf.name} →
+            </Link>
+            <Link
+              to="/$slug/chat"
+              params={{ slug: inf.slug }}
+              search={{ call: 1 }}
+              className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-card px-6 py-3 text-base font-medium text-primary shadow-soft transition-all hover:bg-primary/5"
+            >
+              <span aria-hidden>📞</span> Llamar a {inf.name}
             </Link>
           </div>
 
