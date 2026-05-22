@@ -8,6 +8,9 @@ import { Mic, Send, Radio, PhoneOff, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/$slug/chat")({
   head: ({ params }) => ({ meta: [{ title: `Chat con ${params.slug} · AlterEgo` }] }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    call: search.call === 1 || search.call === "1" ? 1 : undefined,
+  }),
   loader: ({ params }) => getInfluencerBySlug({ data: { slug: params.slug } }),
   component: ChatPage,
 });
@@ -48,7 +51,15 @@ function ChatPage() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [remaining, setRemaining] = useState<number>(RATE_LIMIT_PER_DAY);
-  const [callOpen, setCallOpen] = useState(false);
+  const search = Route.useSearch();
+  const [callOpen, setCallOpen] = useState(search.call === 1);
+
+  useEffect(() => {
+    if (search.call === 1) {
+      navigate({ to: "/$slug/chat", params: { slug }, search: {}, replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -339,8 +350,14 @@ function VoiceCall({
     isMountedRef.current = false;
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
     try { processorRef.current?.disconnect(); } catch { /* */ }
-    try { captureCtxRef.current?.close(); } catch { /* */ }
-    try { playbackCtxRef.current?.close(); } catch { /* */ }
+    if (captureCtxRef.current && captureCtxRef.current.state !== "closed") {
+      captureCtxRef.current.close().catch(() => {});
+    }
+    captureCtxRef.current = null;
+    if (playbackCtxRef.current && playbackCtxRef.current.state !== "closed") {
+      playbackCtxRef.current.close().catch(() => {});
+    }
+    playbackCtxRef.current = null;
     if (wsRef.current) {
       try { wsRef.current.close(); } catch { /* */ }
       wsRef.current = null;
@@ -497,8 +514,14 @@ const WS_URL = mode === "apikey" && apiKey
       isMountedRef.current = false;
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
       try { processorRef.current?.disconnect(); } catch { /* */ }
-      try { captureCtxRef.current?.close(); } catch { /* */ }
-      try { playbackCtxRef.current?.close(); } catch { /* */ }
+      if (captureCtxRef.current && captureCtxRef.current.state !== "closed") {
+        captureCtxRef.current.close().catch(() => {});
+      }
+      captureCtxRef.current = null;
+      if (playbackCtxRef.current && playbackCtxRef.current.state !== "closed") {
+        playbackCtxRef.current.close().catch(() => {});
+      }
+      playbackCtxRef.current = null;
       try { wsRef.current?.close(); } catch { /* */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
