@@ -4,7 +4,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Avatar, Logo, PulseDot, Badge } from "@/components/brand";
 import { getInfluencerBySlug } from "@/lib/influencer.functions";
 import { QUICK_SUGGESTIONS, RATE_LIMIT_PER_DAY } from "@/lib/influencer";
-import { Mic, Send, Radio, PhoneOff, ArrowLeft } from "lucide-react";
+import { Mic, Send, PhoneOff, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/$slug/chat")({
   head: ({ params }) => ({ meta: [{ title: `Chat con ${params.slug} · AlterEgo` }] }),
