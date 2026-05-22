@@ -4,7 +4,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Avatar, Logo, PulseDot, Badge } from "@/components/brand";
 import { getInfluencerBySlug } from "@/lib/influencer.functions";
 import { QUICK_SUGGESTIONS, RATE_LIMIT_PER_DAY } from "@/lib/influencer";
-import { Mic, Send, Radio, PhoneOff, ArrowLeft } from "lucide-react";
+import { Mic, Send, PhoneOff, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/$slug/chat")({
   head: ({ params }) => ({ meta: [{ title: `Chat con ${params.slug} · AlterEgo` }] }),
@@ -257,24 +257,14 @@ function ChatPage() {
               className="flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 outline-none placeholder:text-muted-foreground"
               style={{ maxHeight: 120 }}
             />
-            {input.trim() ? (
-              <button
-                onClick={() => send(input)}
-                disabled={streaming}
-                className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                aria-label="Enviar"
-              >
-                <Send className="size-4" />
-              </button>
-            ) : (
-              <button
-                onClick={() => setCallOpen(true)}
-                className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground hover:opacity-90"
-                aria-label="Llamada de voz"
-              >
-                <Radio className="size-4" />
-              </button>
-            )}
+            <button
+              onClick={() => send(input)}
+              disabled={streaming || !input.trim()}
+              className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              aria-label="Enviar"
+            >
+              <Send className="size-4" />
+            </button>
           </div>
           <p className="mt-2 text-center text-xs text-muted-foreground">
             {remaining} mensajes restantes hoy
