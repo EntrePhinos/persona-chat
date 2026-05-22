@@ -8,6 +8,9 @@ import { Mic, Send, Radio, PhoneOff, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/$slug/chat")({
   head: ({ params }) => ({ meta: [{ title: `Chat con ${params.slug} · AlterEgo` }] }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    call: search.call === 1 || search.call === "1" ? 1 : undefined,
+  }),
   loader: ({ params }) => getInfluencerBySlug({ data: { slug: params.slug } }),
   component: ChatPage,
 });
