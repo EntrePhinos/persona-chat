@@ -350,8 +350,14 @@ function VoiceCall({
     isMountedRef.current = false;
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
     try { processorRef.current?.disconnect(); } catch { /* */ }
-    try { captureCtxRef.current?.close(); } catch { /* */ }
-    try { playbackCtxRef.current?.close(); } catch { /* */ }
+    if (captureCtxRef.current && captureCtxRef.current.state !== "closed") {
+      captureCtxRef.current.close().catch(() => {});
+    }
+    captureCtxRef.current = null;
+    if (playbackCtxRef.current && playbackCtxRef.current.state !== "closed") {
+      playbackCtxRef.current.close().catch(() => {});
+    }
+    playbackCtxRef.current = null;
     if (wsRef.current) {
       try { wsRef.current.close(); } catch { /* */ }
       wsRef.current = null;
