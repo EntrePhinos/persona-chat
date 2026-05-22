@@ -51,7 +51,15 @@ function ChatPage() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [remaining, setRemaining] = useState<number>(RATE_LIMIT_PER_DAY);
-  const [callOpen, setCallOpen] = useState(false);
+  const search = Route.useSearch();
+  const [callOpen, setCallOpen] = useState(search.call === 1);
+
+  useEffect(() => {
+    if (search.call === 1) {
+      navigate({ to: "/$slug/chat", params: { slug }, search: {}, replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
