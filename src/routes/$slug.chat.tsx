@@ -303,6 +303,7 @@ function VoiceCall({
   const isPlayingRef = useRef(false);
   const isMountedRef = useRef(true);
   const statusRef = useRef<CallStatus>("connecting");
+  const setupCompleteRef = useRef(false);
 
   const setCallStatus = (s: CallStatus) => {
     statusRef.current = s;
@@ -355,8 +356,61 @@ function VoiceCall({
     onClose();
   }, [onClose]);
 
+  async function startMicCapture(ws: WebSocket) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+      if (!isMountedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      mediaStreamRef.current = stream;
+
+      const captureCtx = new AudioContext({ sampleRate: 16000 });
+      captureCtxRef.current = captureCtx;
+      playbackCtxRef.current = new AudioContext({ sampleRate: 24000 });
+
+      const source = captureCtx.createMediaStreamSource(stream);
+      const processor = captureCtx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      processor.onaudioprocess = (e) => {
+        if (ws.readyState !== WebSocket.OPEN || !setupCompleteRef.current) return;
+        const float32 = e.inputBuffer.getChannelData(0);
+        const pcm16 = new Int16Array(float32.length);
+        for (let i = 0; i < float32.length; i++) {
+          pcm16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+        }
+        const bytes = new Uint8Array(pcm16.buffer);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const base64Audio = btoa(bin);
+        ws.send(JSON.stringify({
+          realtimeInput: {
+            audio: { mimeType: "audio/pcm;rate=16000", data: base64Audio },
+          },
+        }));
+      };
+
+      source.connect(processor);
+      processor.connect(captureCtx.destination);
+      setCallStatus("listening");
+    } catch (err) {
+      console.error("mic error", err);
+      setErrorMsg("No se pudo acceder al micrófono. Revisa los permisos del navegador.");
+      setCallStatus("error");
+    }
+  }
+
   useEffect(() => {
     isMountedRef.current = true;
+    setupCompleteRef.current = false;
 
     async function startCall() {
       try {
@@ -365,21 +419,22 @@ function VoiceCall({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ influencer_id: influencer.id }),
         });
-if (!tokenRes.ok) throw new Error("No se pudo iniciar la llamada");
-const { token, apiKey, model, mode } = (await tokenRes.json()) as {
-  token?: string; apiKey?: string; model?: string; mode?: string;
-};
-if (!token && !apiKey) throw new Error("No se pudo autenticar con el servicio de voz");
+        const tokenJson = (await tokenRes.json().catch(() => ({}))) as {
+          token?: string; model?: string; error?: string; detail?: string;
+        };
+        if (!tokenRes.ok || !tokenJson.token) {
+          throw new Error(tokenJson.error || `No se pudo iniciar la llamada (HTTP ${tokenRes.status})`);
+        }
 
-const liveModel = model ?? "gemini-live-2.5-flash-preview";
-const WS_URL = mode === "apikey" && apiKey
-  ? `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`
-  : `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`;
+        const liveModel = tokenJson.model ?? "gemini-live-2.5-flash-preview";
+        const WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${tokenJson.token}`;
+
         const ws = new WebSocket(WS_URL);
         wsRef.current = ws;
 
-        ws.onopen = async () => {
+        ws.onopen = () => {
           if (!isMountedRef.current) return;
+          // setup message; systemInstruction/voice already locked via token constraints
           ws.send(JSON.stringify({
             setup: {
               model: `models/${liveModel}`,
@@ -389,54 +444,17 @@ const WS_URL = mode === "apikey" && apiKey
                   voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
                 },
               },
+              realtimeInputConfig: {
+                automaticActivityDetection: {
+                  disabled: false,
+                  silenceDurationMs: 1200,
+                  prefixPaddingMs: 300,
+                },
+                activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
+                turnCoverage: "TURN_INCLUDES_ONLY_ACTIVITY",
+              },
             },
           }));
-
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                sampleRate: 16000,
-                channelCount: 1,
-                echoCancellation: true,
-                noiseSuppression: true,
-              },
-            });
-            mediaStreamRef.current = stream;
-
-            const captureCtx = new AudioContext({ sampleRate: 16000 });
-            captureCtxRef.current = captureCtx;
-            playbackCtxRef.current = new AudioContext({ sampleRate: 24000 });
-
-            const source = captureCtx.createMediaStreamSource(stream);
-            const processor = captureCtx.createScriptProcessor(4096, 1, 1);
-            processorRef.current = processor;
-
-            processor.onaudioprocess = (e) => {
-              if (ws.readyState !== WebSocket.OPEN) return;
-              const float32 = e.inputBuffer.getChannelData(0);
-              const pcm16 = new Int16Array(float32.length);
-              for (let i = 0; i < float32.length; i++) {
-                pcm16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
-              }
-              const bytes = new Uint8Array(pcm16.buffer);
-              let bin = "";
-              for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-              const base64Audio = btoa(bin);
-              ws.send(JSON.stringify({
-                realtimeInput: {
-                  audio: { mimeType: "audio/pcm;rate=16000", data: base64Audio },
-                },
-              }));
-            };
-
-            source.connect(processor);
-            processor.connect(captureCtx.destination);
-
-            setCallStatus("listening");
-          } catch {
-            setErrorMsg("No se pudo acceder al micrófono. Revisa los permisos.");
-            setCallStatus("error");
-          }
         };
 
         ws.onmessage = async (event) => {
@@ -446,6 +464,12 @@ const WS_URL = mode === "apikey" && apiKey
               ? event.data
               : await (event.data as Blob).text();
             const data = JSON.parse(raw);
+
+            if (data.setupComplete !== undefined && !setupCompleteRef.current) {
+              setupCompleteRef.current = true;
+              startMicCapture(ws);
+              return;
+            }
 
             if (data.serverContent?.generationComplete === false) {
               if (statusRef.current !== "speaking") setCallStatus("thinking");
@@ -473,20 +497,28 @@ const WS_URL = mode === "apikey" && apiKey
               isPlayingRef.current = false;
               setCallStatus("listening");
             }
-          } catch {
-            /* ignore */
+          } catch (err) {
+            console.warn("ws message parse error", err);
           }
         };
 
-        ws.onerror = () => {
+        ws.onerror = (ev) => {
+          console.error("ws error", ev);
           if (!isMountedRef.current) return;
-          setErrorMsg("Error de conexión con el servicio de voz.");
+          setErrorMsg("Error de conexión con el servicio de voz de Gemini.");
           setCallStatus("error");
         };
 
-        ws.onclose = () => {
+        ws.onclose = (ev) => {
           if (!isMountedRef.current) return;
-          if (statusRef.current !== "connecting" && statusRef.current !== "error") {
+          if (!setupCompleteRef.current) {
+            setErrorMsg(
+              `Gemini cerró la conexión antes de iniciar (código ${ev.code}). ${ev.reason || "Token rechazado o Live API no disponible en tu cuenta."}`,
+            );
+            setCallStatus("error");
+            return;
+          }
+          if (statusRef.current !== "error") {
             setErrorMsg("La llamada se desconectó.");
             setCallStatus("error");
           }
